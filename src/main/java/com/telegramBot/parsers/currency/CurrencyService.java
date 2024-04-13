@@ -1,6 +1,8 @@
-package com.telegramBot.parsers;
+package com.telegramBot.parsers.currency;
 
 import com.google.gson.Gson;
+import com.telegramBot.parsers.currency.Currency;
+import com.telegramBot.parsers.currency.CurrencyRepository;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

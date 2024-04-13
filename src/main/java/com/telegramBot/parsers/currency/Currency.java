@@ -1,4 +1,4 @@
-package com.telegramBot.parsers;
+package com.telegramBot.parsers.currency;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
