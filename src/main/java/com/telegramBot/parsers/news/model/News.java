@@ -22,6 +22,8 @@ public class News {
     private LocalDateTime dateTime;
     @Column(name = "main_text")
     private String mainText;
+    @Column(name = "image_url")
+    private String imageUrl;
     @ManyToMany(mappedBy = "news", fetch = FetchType.EAGER)
     private List<Tag> list = new ArrayList<>();
 }

@@ -25,7 +25,7 @@ public class NewsService {
         Document document = Jsoup.connect("https://ria.ru/economy/").get();
         Elements listItems = document.getElementsByClass("list-item__title color-font-hover-only");
         List<News> listNews = new ArrayList<>();
-        for (Element item : listItems) {
+        for (Element item : listItems.reversed()) {
             News news = new News();
             Element titleElement = item.selectFirst("a");
             String title = item.text();
@@ -43,7 +43,7 @@ public class NewsService {
                 if (block.attr("data-type").equals("text")) {
                     Element textElement = block.selectFirst(".article__text");
                     String blockText = textElement.text();
-                    allText.append(blockText + "\n");
+                    allText.append(blockText).append("\n");
                 }
             }
             news.setMainText(allText.toString());
@@ -54,6 +54,10 @@ public class NewsService {
             if (startIndex > -1 && endIndex > startIndex) {
                 pageTags = scriptData.substring(startIndex, endIndex);
             }
+            Element imageElement = newsDocument.selectFirst("img");
+            String imageUrl = imageElement != null ? imageElement.attr("src") : "";
+            news.setImageUrl(imageUrl);
+
             news.setList(listWithTagsFromString(pageTags));
             listNews.add(news);
         }
@@ -81,15 +85,11 @@ public class NewsService {
     }
 
     public void saveNewsInDataBase(List<News> listNews){
-        List<News> savedNews = newsRepository.findAll();
-        listNews.reversed();
         for (News news : listNews) {
             System.out.println(news.getLink());
             if (newsRepository.findByLink(news.getLink()) == null) {
                 news.setDateTime(LocalDateTime.now());
                 newsRepository.save(news);
-            } else {
-                break;
             }
         }
     }
