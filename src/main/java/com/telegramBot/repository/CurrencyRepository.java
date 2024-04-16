@@ -1,6 +1,6 @@
-package com.telegramBot.parsers.currency;
+package com.telegramBot.repository;
 
-import com.telegramBot.parsers.currency.Currency;
+import com.telegramBot.model.Currency;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

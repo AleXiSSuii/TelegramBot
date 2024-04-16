@@ -1,4 +1,4 @@
-package com.telegramBot.parsers.news.model;
+package com.telegramBot.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
@@ -26,4 +26,6 @@ public class News {
     private String imageUrl;
     @ManyToMany(mappedBy = "news", fetch = FetchType.EAGER)
     private List<Tag> list = new ArrayList<>();
+    @Column(name ="check_send")
+    private Boolean checkSend;
 }

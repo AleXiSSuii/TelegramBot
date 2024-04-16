@@ -1,4 +1,4 @@
-package com.telegramBot.parsers.news.model;
+package com.telegramBot.model;
 
 import jakarta.persistence.*;
 import lombok.Data;

@@ -1,6 +1,6 @@
-package com.telegramBot.parsers.news;
+package com.telegramBot.repository;
 
-import com.telegramBot.parsers.news.model.Tag;
+import com.telegramBot.model.Tag;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

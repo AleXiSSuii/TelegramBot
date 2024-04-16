@@ -1,7 +1,6 @@
-package com.telegramBot.parsers.news;
+package com.telegramBot.service;
 
-import com.telegramBot.parsers.news.model.News;
-import com.telegramBot.parsers.news.model.Tag;
+import com.telegramBot.model.News;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -10,16 +9,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
-public class NewsService {
+public class ParseService {
+
     @Autowired
-    private NewsRepository newsRepository;
-    @Autowired
-    private TagRepository tagRepository;
+    private NewsService newsService;
 
     public List<News> parseNewNews() throws IOException {
         Document document = Jsoup.connect("https://ria.ru/economy/").get();
@@ -58,39 +55,21 @@ public class NewsService {
             String imageUrl = imageElement != null ? imageElement.attr("src") : "";
             news.setImageUrl(imageUrl);
 
-            news.setList(listWithTagsFromString(pageTags));
+            news.setList(newsService.listWithTagsFromString(pageTags));
             listNews.add(news);
         }
         return listNews;
     }
-
-    public List<Tag> listWithTagsFromString(String tagsLine){
-        List<Tag> allTags = new ArrayList<>();
-        String[] tags = tagsLine.split(", ");
-        if(!tagsLine.isEmpty()){
-            for (String s : tags) {
-                Tag existingTag = tagRepository.findTagByTitle(s);
-                System.out.println(existingTag);
-                if(existingTag != null){
-                    allTags.add(existingTag);
-                }else{
-                    Tag tag = new Tag();
-                    tag.setTitle(s);
-                    allTags.add(tag);
-                    tagRepository.save(tag);
-                }
+    public News postNewNews(){
+        List<News> listNews = newsService.getAllNewsSortByDate();
+        News postNews = new News();
+        for(News news:listNews){
+            if(news.getCheckSend().equals(true)){
+                System.out.println(postNews.getTitle());
+                return postNews;
             }
+            postNews = news;
         }
-        return allTags;
-    }
-
-    public void saveNewsInDataBase(List<News> listNews){
-        for (News news : listNews) {
-            System.out.println(news.getLink());
-            if (newsRepository.findByLink(news.getLink()) == null) {
-                news.setDateTime(LocalDateTime.now());
-                newsRepository.save(news);
-            }
-        }
+        return postNews;
     }
 }
