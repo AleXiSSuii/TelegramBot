@@ -10,17 +10,15 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
-import javax.imageio.ImageIO;
-import java.awt.*;
-import java.io.IOException;
-import java.net.MalformedURLException;
-
-import java.net.URL;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,6 +37,9 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Autowired
     private ParseService parseService;
+
+    @Autowired
+    private ImageService imageService;
 
     static final String HELP_TEXT = "Это бот агрегатор новостей в экономеческой сфере";
 
@@ -108,16 +109,50 @@ public class TelegramBot extends TelegramLongPollingBot {
 
 
     @Scheduled(cron = "0 * * * * *")
-    private void sendNews() throws MalformedURLException {
+    private void sendNews() {
         List<User> usersList = userService.getAllUsers();
         News news = parseService.postNewNews();
-        if(news.getTitle() !=null && news.getMainText() !=null){
+        File image = imageService.saveImage(news.getImageUrl());
+        if (news.getTitle() != null && news.getMainText() != null) {
             for (User user : usersList) {
-                sendMessage(user.getChatId(), news.getTitle() + "\n" + news.getMainText());
-                newsService.checkerIsTrue(news);
+                sendPhotoMessage(user, news.getTitle() + "\n" + news.getMainText(), image);
+
             }
-        }else {
+            newsService.checkerIsTrue(news);
+        } else {
             log.info("Нет подходящих новостей для публикации");
+        }
+    }
+
+    private void sendPhotoMessage(User user,String text,File image) {
+        SendPhoto sendPhoto = new SendPhoto();
+        sendPhoto.setChatId(String.valueOf(user.getChatId()));
+        if (image != null) {
+            sendPhoto.setPhoto(new InputFile(image));
+            try {
+                execute(sendPhoto);
+            } catch (TelegramApiRequestException error){
+                if(error.getErrorCode()==403){
+                    log.info("Пользователь " + user.getChatId() + " заблокировал бота");
+                    return;
+                }
+            } catch (TelegramApiException e) {
+                log.error("Ошибка отправки картинки", e);
+            }
+        } else {
+            log.info("Нет картинки для добавления или произошла ошибка");
+        }
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(user.getChatId()));
+        message.setText(text);
+        try {
+            execute(message);
+        }catch (TelegramApiRequestException error){
+            if(error.getErrorCode()==403){
+                log.info("Пользователь " + user.getChatId() + " заблокировал бота");
+            }
+        } catch (TelegramApiException e) {
+            log.error("Ошибка отправки сообщения", e);
         }
     }
 }
