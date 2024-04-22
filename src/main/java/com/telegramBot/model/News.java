@@ -1,5 +1,6 @@
 package com.telegramBot.model;
 
+import com.telegramBot.model.enums.Source;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -28,4 +29,7 @@ public class News {
     private List<Tag> list = new ArrayList<>();
     @Column(name ="check_send")
     private Boolean checkSend;
+    @Column(name = "source")
+    @Enumerated(value = EnumType.STRING)
+    private Source source;
 }

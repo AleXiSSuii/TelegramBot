@@ -25,11 +25,10 @@ public class NewsService {
     @Autowired
     private TagRepository tagRepository;
 
-    public List<Tag> listWithTagsFromString(String tagsLine){
+    public List<Tag> listWithTagsFromStringList(List<String> tagsLine){
         List<Tag> allTags = new ArrayList<>();
-        String[] tags = tagsLine.split(", ");
         if(!tagsLine.isEmpty()){
-            for (String s : tags) {
+            for (String s : tagsLine) {
                 Tag existingTag = tagRepository.findTagByTitle(s);
                 System.out.println(existingTag);
                 if(existingTag != null){

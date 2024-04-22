@@ -14,11 +14,11 @@ public class Currency{
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
-    @Column(name = "char_code")
-    private String CharCode;
+    @Column(name = "code")
+    private String code;
     @Column(name = "name")
-    private String Name;
+    private String name;
     @Column(name = "value")
-    private Double Value;
+    private Double value;
 }
 

@@ -1,20 +1,24 @@
 package com.telegramBot.service;
 
 import com.telegramBot.configuration.BotConfiguration;
+import com.telegramBot.model.Currency;
 import com.telegramBot.model.News;
 import com.telegramBot.model.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
+import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.commands.scope.BotCommandScopeDefault;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.ReplyKeyboardMarkup;
+import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.KeyboardRow;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
@@ -25,6 +29,8 @@ import java.util.List;
 @Component
 @Slf4j
 public class TelegramBot extends TelegramLongPollingBot {
+
+    private Boolean checkKeyboard = null;
 
     @Autowired
     private BotConfiguration botConfiguration;
@@ -40,6 +46,12 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Autowired
     private ImageService imageService;
+
+    @Autowired
+    private CurrencyService currencyService;
+
+    @Autowired
+    private InlineKeyboardService inlineKeyboardService;
 
     static final String HELP_TEXT = "Это бот агрегатор новостей в экономеческой сфере";
 
@@ -71,6 +83,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     @Override
     public void onUpdateReceived(Update update) {
+
         if (update.hasMessage() && update.getMessage().hasText()) {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
@@ -83,11 +96,57 @@ public class TelegramBot extends TelegramLongPollingBot {
                 case "/help":
                     sendMessage(chatId, HELP_TEXT);
                     break;
+                case "/currency":
+                    currencyMenu(chatId);
+                    break;
+                case "Популярные валюты":
+                    topValute(chatId, inlineKeyboardService.getTopValuteKeyboard());
+                    checkKeyboard = true;
+                    break;
+                case "Все валюты":
+                    allValute(chatId,inlineKeyboardService.getAllValuteKeyboard());
+                    checkKeyboard = false;
+                    break;
                 default:
                     sendMessage(chatId, "Sorry,command is not available");
             }
+        } else if (update.hasCallbackQuery()) {
+            String data = update.getCallbackQuery().getData();
+            long chatId = update.getCallbackQuery().getMessage().getChatId();
+            int messageId = update.getCallbackQuery().getMessage().getMessageId();
+            System.out.println(messageId);
+            Currency currency = currencyService.findByCodeValute(data);
+            String text = "Курс " + currency.getName() + "=" + currency.getValue();
+            if(checkKeyboard.equals(true)){
+                updateMessageText(chatId, messageId, text,inlineKeyboardService.getTopValuteKeyboard());
+            }else {
+                updateMessageText(chatId, messageId, text,inlineKeyboardService.getAllValuteKeyboard());
+            }
         }
+    }
 
+    private void topValute(long chatId, InlineKeyboardMarkup topValuteKeyboard) {
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Выберите валюту");
+
+        message.setReplyMarkup(topValuteKeyboard);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    private void allValute(long chatId, InlineKeyboardMarkup allValuteKeyboard){
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Выберите валюту");
+        message.setReplyMarkup(allValuteKeyboard);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private void startCommandReceived(long chatId, String firstName) {
@@ -103,12 +162,12 @@ public class TelegramBot extends TelegramLongPollingBot {
         try {
             execute(message);
         } catch (TelegramApiException e) {
-            log.error("error");
+            throw new RuntimeException(e);
         }
     }
 
 
-    @Scheduled(cron = "0 * * * * *")
+    //@Scheduled(cron = "0 * * * * *")
     private void sendNews() {
         List<User> usersList = userService.getAllUsers();
         News news = parseService.postNewNews();
@@ -124,15 +183,15 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    private void sendPhotoMessage(User user,String text,File image) {
+    private void sendPhotoMessage(User user, String text, File image) {
         SendPhoto sendPhoto = new SendPhoto();
         sendPhoto.setChatId(String.valueOf(user.getChatId()));
         if (image != null) {
             sendPhoto.setPhoto(new InputFile(image));
             try {
                 execute(sendPhoto);
-            } catch (TelegramApiRequestException error){
-                if(error.getErrorCode()==403){
+            } catch (TelegramApiRequestException error) {
+                if (error.getErrorCode() == 403) {
                     log.info("Пользователь " + user.getChatId() + " заблокировал бота");
                     return;
                 }
@@ -147,12 +206,56 @@ public class TelegramBot extends TelegramLongPollingBot {
         message.setText(text);
         try {
             execute(message);
-        }catch (TelegramApiRequestException error){
-            if(error.getErrorCode()==403){
+        } catch (TelegramApiRequestException error) {
+            if (error.getErrorCode() == 403) {
                 log.info("Пользователь " + user.getChatId() + " заблокировал бота");
             }
         } catch (TelegramApiException e) {
             log.error("Ошибка отправки сообщения", e);
+        }
+    }
+
+    private void currencyMenu(long chatId) {
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Курс валют");
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+        row.add("Популярные валюты");
+        row.add("Все валюты");
+
+        keyboardRows.add(row);
+
+        row = new KeyboardRow();
+        row.add("Вернуться назад");
+        keyboardRows.add(row);
+        keyboardMarkup.setKeyboard(keyboardRows);
+
+
+        message.setReplyMarkup(keyboardMarkup);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            log.error("error");
+        }
+    }
+
+    private void updateMessageText(long chatId, int messageId, String newText, InlineKeyboardMarkup valuteKeyboard) {
+        EditMessageText editMessageText = new EditMessageText();
+        editMessageText.setChatId(String.valueOf(chatId));
+        editMessageText.setMessageId(messageId);
+        editMessageText.setText(newText);
+        editMessageText.setReplyMarkup(valuteKeyboard);
+        try {
+            execute(editMessageText);
+        } catch (TelegramApiException e) {
+            if (e.getMessage().contains("message can't be edited")) {
+                sendMessage(chatId, "Unfortunately, this message cannot be edited anymore.");
+            } else {
+                log.error(e + " ");
+            }
         }
     }
 }

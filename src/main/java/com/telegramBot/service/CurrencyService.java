@@ -31,7 +31,7 @@ public class CurrencyService {
                     .map((currency) -> new Gson().fromJson(
                             currenciesData.getJSONObject(currency).toString(),
                             Currency.class)).toList();
-            currencies.forEach((currency) -> System.out.println(currency.getCharCode() + " " + currency.getName() + " - " + currency.getValue()));
+            currencies.forEach((currency) -> System.out.println(currency.getCode() + " " + currency.getName() + " - " + currency.getValue()));
         } catch (Exception ignored){
 
         }
@@ -47,7 +47,7 @@ public class CurrencyService {
         List<Currency> oldCurrencies = currencyRepository.findAll();
         for(Currency currency:currencies){
             Currency existingCurrency = oldCurrencies.stream()
-                    .filter(c -> c.getCharCode().equals(currency.getCharCode()))
+                    .filter(c -> c.getCode().equals(currency.getCode()))
                     .findFirst().orElse(null);
             if (existingCurrency != null) {
                 existingCurrency.setValue(currency.getValue());
@@ -56,5 +56,9 @@ public class CurrencyService {
                 currencyRepository.save(currency);
             }
         }
+    }
+
+    public Currency findByCodeValute(String code){
+        return currencyRepository.findByCode(code);
     }
 }
