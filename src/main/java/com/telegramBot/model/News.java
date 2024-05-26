@@ -3,12 +3,15 @@ package com.telegramBot.model;
 import com.telegramBot.model.enums.Source;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-@Data
+@Getter
+@Setter
 @Entity
 @Table(name = "news")
 public class News {
@@ -26,10 +29,12 @@ public class News {
     @Column(name = "image_url")
     private String imageUrl;
     @ManyToMany(mappedBy = "news", fetch = FetchType.EAGER)
-    private List<Tag> list = new ArrayList<>();
+    private Set<Tag> tags = new HashSet<>();
     @Column(name ="check_send")
     private Boolean checkSend;
     @Column(name = "source")
     @Enumerated(value = EnumType.STRING)
     private Source source;
+    @ManyToMany(mappedBy = "seenNews", fetch = FetchType.LAZY)
+    private Set<User> users = new HashSet<>();
 }

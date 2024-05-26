@@ -3,7 +3,6 @@ package com.telegramBot.service;
 import com.telegramBot.configuration.BotConfiguration;
 import com.telegramBot.model.Currency;
 import com.telegramBot.model.News;
-import com.telegramBot.model.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -26,11 +25,15 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.telegramBot.utils.Constants.HELP_TEXT;
+
 @Component
 @Slf4j
 public class TelegramBot extends TelegramLongPollingBot {
 
     private Boolean checkKeyboard = null;
+    private boolean isTagSearchActive = false;
+    private long tagSearchChatId = -1;
 
     @Autowired
     private BotConfiguration botConfiguration;
@@ -42,9 +45,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     private UserService userService;
 
     @Autowired
-    private ParseService parseService;
-
-    @Autowired
     private ImageService imageService;
 
     @Autowired
@@ -53,15 +53,14 @@ public class TelegramBot extends TelegramLongPollingBot {
     @Autowired
     private InlineKeyboardService inlineKeyboardService;
 
-    static final String HELP_TEXT = "Это бот агрегатор новостей в экономеческой сфере";
+
 
     public TelegramBot(BotConfiguration botConfiguration) {
         this.botConfiguration = botConfiguration;
         List<BotCommand> listOfCommands = new ArrayList<>();
-        listOfCommands.add(new BotCommand("/start", "get a welcome message"));
-        listOfCommands.add(new BotCommand("/news", "get news"));
+        listOfCommands.add(new BotCommand("/start", "Начало работы чат-бота агрегатора"));
+        listOfCommands.add(new BotCommand("/news", "Новость по тэгу"));
         listOfCommands.add(new BotCommand("/currency", "Получить свежий курс валют"));
-        listOfCommands.add(new BotCommand("/tags", "Новости по тэгам"));
         listOfCommands.add(new BotCommand("/help", "Информация о боте"));
         try {
             this.execute(new SetMyCommands(listOfCommands, new BotCommandScopeDefault(), null));
@@ -88,40 +87,107 @@ public class TelegramBot extends TelegramLongPollingBot {
             String messageText = update.getMessage().getText();
             long chatId = update.getMessage().getChatId();
 
-            switch (messageText) {
-                case "/start":
-                    startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
-                    userService.registerUser(update.getMessage());
-                    break;
-                case "/help":
-                    sendMessage(chatId, HELP_TEXT);
-                    break;
-                case "/currency":
-                    currencyMenu(chatId);
-                    break;
-                case "Популярные валюты":
-                    topValute(chatId, inlineKeyboardService.getTopValuteKeyboard());
-                    checkKeyboard = true;
-                    break;
-                case "Все валюты":
-                    allValute(chatId,inlineKeyboardService.getAllValuteKeyboard());
-                    checkKeyboard = false;
-                    break;
-                default:
-                    sendMessage(chatId, "Sorry,command is not available");
+            if (isTagSearchActive && chatId == tagSearchChatId) {
+                News news = newsService.getNewsByTagForUser(chatId, messageText);
+                if(news != null){
+                    File image = imageService.saveImage(news.getImageUrl());
+                    sendPhotoMessage(chatId, news.getTitle() + "\n" + "\n" + news.getMainText(), image);
+                }else {
+                    sendMessage(chatId,"Данного тэга не существует");
+                }
+                isTagSearchActive = false;
+            } else {
+                switch (messageText) {
+                    case "/start":
+                        startCommandReceived(chatId, update.getMessage().getChat().getFirstName());
+                        userService.registerUser(update.getMessage());
+                        break;
+                    case "/help":
+                        sendMessage(chatId, HELP_TEXT);
+                        break;
+                    case "/currency":
+                        currencyMenu(chatId);
+                        break;
+                    case "/news":
+                        newsMenu(chatId);
+                        break;
+                    case "Популярные валюты":
+                        topValute(chatId, inlineKeyboardService.getTopValuteKeyboard());
+                        checkKeyboard = true;
+                        break;
+                    case "Все валюты":
+                        allValute(chatId, inlineKeyboardService.getAllValuteKeyboard());
+                        checkKeyboard = false;
+                        break;
+                    case "Популярные тэги":
+                        topTags(chatId, inlineKeyboardService.getTopTagsKeyboard());
+                        break;
+                    case "Поиск по тэгу":
+                        sendMessage(chatId, "Напишите название тэга");
+                        isTagSearchActive = true;
+                        tagSearchChatId = chatId;
+                        break;
+                    default:
+                        sendMessage(chatId, "Sorry,command is not available");
+                }
             }
         } else if (update.hasCallbackQuery()) {
             String data = update.getCallbackQuery().getData();
             long chatId = update.getCallbackQuery().getMessage().getChatId();
-            int messageId = update.getCallbackQuery().getMessage().getMessageId();
-            System.out.println(messageId);
-            Currency currency = currencyService.findByCodeValute(data);
-            String text = "Курс " + currency.getName() + "=" + currency.getValue();
-            if(checkKeyboard.equals(true)){
-                updateMessageText(chatId, messageId, text,inlineKeyboardService.getTopValuteKeyboard());
-            }else {
-                updateMessageText(chatId, messageId, text,inlineKeyboardService.getAllValuteKeyboard());
+            if (data.startsWith("currency")) {
+                int messageId = update.getCallbackQuery().getMessage().getMessageId();
+                Currency currency = currencyService.findByCodeValute(data.substring("currency_".length()));
+                String text = "Курс " + currency.getName() + " (" + currency.getCharCode() + ") = " + currency.getValue() + " руб";
+                if (checkKeyboard.equals(true)) {
+                    updateMessageText(chatId, messageId, text, inlineKeyboardService.getTopValuteKeyboard());
+                } else {
+                    updateMessageText(chatId, messageId, text, inlineKeyboardService.getAllValuteKeyboard());
+                }
+            } else if (data.startsWith("tag")) {
+                News news = newsService.getNewsByTagForUser(chatId, data.substring("tag_".length()));
+                if(news != null){
+                    File image = imageService.saveImage(news.getImageUrl());
+                    sendPhotoMessage(chatId, news.getTitle() + "\n" + "\n" + news.getMainText(), image);
+                }else{
+                    sendMessage(chatId,"Данного тэга не существует");
+                }
             }
+        }
+    }
+
+    private void topTags(long chatId, InlineKeyboardMarkup topTagsKeyboard) {
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Популярные тэги");
+
+        message.setReplyMarkup(topTagsKeyboard);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void newsMenu(long chatId) {
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText("Новости");
+        ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
+        List<KeyboardRow> keyboardRows = new ArrayList<>();
+
+        KeyboardRow row = new KeyboardRow();
+        row.add("Популярные тэги");
+        row.add("Поиск по тэгу");
+
+        keyboardRows.add(row);
+
+        keyboardMarkup.setKeyboard(keyboardRows);
+
+        message.setReplyMarkup(keyboardMarkup);
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            log.error("error");
         }
     }
 
@@ -137,7 +203,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             throw new RuntimeException(e);
         }
     }
-    private void allValute(long chatId, InlineKeyboardMarkup allValuteKeyboard){
+
+    private void allValute(long chatId, InlineKeyboardMarkup allValuteKeyboard) {
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
         message.setText("Выберите валюту");
@@ -150,12 +217,12 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     private void startCommandReceived(long chatId, String firstName) {
-        String answer = "Привет" + firstName + ",nice to meet you";
+        String answer = "Приветствуем, " + firstName + " , в чат-бот агрегаторе новостей в сфере финансы";
         log.info("Replied to user " + firstName);
         sendMessage(chatId, answer);
     }
 
-    private void sendMessage(long chatId, String textToSend) {
+    protected void sendMessage(long chatId, String textToSend) {
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
         message.setText(textToSend);
@@ -166,33 +233,16 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-
-    //@Scheduled(cron = "0 * * * * *")
-    private void sendNews() {
-        List<User> usersList = userService.getAllUsers();
-        News news = parseService.postNewNews();
-        File image = imageService.saveImage(news.getImageUrl());
-        if (news.getTitle() != null && news.getMainText() != null) {
-            for (User user : usersList) {
-                sendPhotoMessage(user, news.getTitle() + "\n" + news.getMainText(), image);
-
-            }
-            newsService.checkerIsTrue(news);
-        } else {
-            log.info("Нет подходящих новостей для публикации");
-        }
-    }
-
-    private void sendPhotoMessage(User user, String text, File image) {
+    protected void sendPhotoMessage(long chatId, String text, File image) {
         SendPhoto sendPhoto = new SendPhoto();
-        sendPhoto.setChatId(String.valueOf(user.getChatId()));
+        sendPhoto.setChatId(String.valueOf(chatId));
         if (image != null) {
             sendPhoto.setPhoto(new InputFile(image));
             try {
                 execute(sendPhoto);
             } catch (TelegramApiRequestException error) {
                 if (error.getErrorCode() == 403) {
-                    log.info("Пользователь " + user.getChatId() + " заблокировал бота");
+                    log.info("Пользователь " + chatId + " заблокировал бота");
                     return;
                 }
             } catch (TelegramApiException e) {
@@ -202,13 +252,13 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.info("Нет картинки для добавления или произошла ошибка");
         }
         SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(user.getChatId()));
+        message.setChatId(String.valueOf(chatId));
         message.setText(text);
         try {
             execute(message);
         } catch (TelegramApiRequestException error) {
             if (error.getErrorCode() == 403) {
-                log.info("Пользователь " + user.getChatId() + " заблокировал бота");
+                log.info("Пользователь " + chatId + " заблокировал бота");
             }
         } catch (TelegramApiException e) {
             log.error("Ошибка отправки сообщения", e);
@@ -228,11 +278,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         keyboardRows.add(row);
 
-        row = new KeyboardRow();
-        row.add("Вернуться назад");
-        keyboardRows.add(row);
         keyboardMarkup.setKeyboard(keyboardRows);
-
 
         message.setReplyMarkup(keyboardMarkup);
         try {
@@ -241,7 +287,6 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error("error");
         }
     }
-
     private void updateMessageText(long chatId, int messageId, String newText, InlineKeyboardMarkup valuteKeyboard) {
         EditMessageText editMessageText = new EditMessageText();
         editMessageText.setChatId(String.valueOf(chatId));

@@ -19,9 +19,9 @@ public class ParseService {
     @Autowired
     private NewsService newsService;
 
-    public List<News> parseNewNews(Source source) throws IOException {
+    public void parseNewNews(Source source) throws IOException {
         if(source.equals(Source.RIA)){
-            Document document = Jsoup.connect("https://ria.ru/economy/").get();
+            Document document = Jsoup.connect("https://ria.ru/tag_finansy/").get();
             Elements listItems = document.getElementsByClass("list-item__title color-font-hover-only");
             List<News> listNews = new ArrayList<>();
             for (Element item : listItems.reversed()) {
@@ -37,13 +37,23 @@ public class ParseService {
 
                 Document newsDocument = Jsoup.connect(newsLink).get();
                 StringBuilder  allText = new StringBuilder();
-
+                boolean skip = true;
                 for (Element block : newsDocument.getElementsByClass("article__block")) {
                     if (block.attr("data-type").equals("text")) {
+                        if(skip){
+                            skip = false;
+                            continue;
+                        }
                         Element textElement = block.selectFirst(".article__text");
                         String blockText = textElement.text();
+                        if (blockText.contains("Такого Telegram-канала, как у нас, нет ни у кого. Он для тех, кто хочет делать выводы сам.")) {
+                            continue;
+                        }
                         allText.append(blockText).append("\n");
                     }
+                }
+                if(allText.length() < 45){
+                    continue;
                 }
                 news.setMainText(allText.toString());
 
@@ -52,6 +62,9 @@ public class ParseService {
                 List<String> tags = new ArrayList<>();
                 for (Element tagElement : tagsElements) {
                     String tagName = tagElement.text().trim();
+                    if (tagName.equals("Финансы")){
+                        continue;
+                    }
                     tags.add(tagName);
                 }
 
@@ -59,13 +72,12 @@ public class ParseService {
                 String imageUrl = imageElement != null ? imageElement.attr("src") : "";
                 news.setImageUrl(imageUrl);
 
-                news.setList(newsService.listWithTagsFromStringList(tags));
                 news.setSource(Source.RIA);
                 listNews.add(news);
+                newsService.saveNewsWithTags(news,tags);
             }
-            return listNews;
         }else{
-            Document document = Jsoup.connect("https://www.rbc.ru/economics/?utm_source=topline").get();
+            Document document = Jsoup.connect("https://www.rbc.ru/finances/").get();
             Elements listItems = document.getElementsByClass("item__link");
             List<News> listNews = new ArrayList<>();
             for (Element item : listItems) {
@@ -82,7 +94,9 @@ public class ParseService {
                 for (Element block :  newsDocument.getElementsByClass("article__text article__text_free")) {
                     allText.append(block.select("p").text());
                 }
-
+                if(allText.length() < 45){
+                    continue;
+                }
                 news.setMainText(allText.toString());
                 Element imageElement = newsDocument.selectFirst(".article__main-image img");
                 String imageUrl = imageElement != null ? imageElement.attr("src") : "";
@@ -97,22 +111,9 @@ public class ParseService {
                 news.setImageUrl(imageUrl);
                 news.setMainText(allText.toString());
                 news.setSource(Source.RBC);
-                news.setList(newsService.listWithTagsFromStringList(tags));
                 listNews.add(news);
+                newsService.saveNewsWithTags(news,tags);
             }
-            return listNews;
         }
-    }
-    public News postNewNews(){
-        List<News> listNews = newsService.getAllNewsSortByDate();
-        News postNews = new News();
-        for(News news:listNews){
-            if(news.getCheckSend().equals(true)){
-                System.out.println(postNews.getTitle());
-                return postNews;
-            }
-            postNews = news;
-        }
-        return postNews;
     }
 }

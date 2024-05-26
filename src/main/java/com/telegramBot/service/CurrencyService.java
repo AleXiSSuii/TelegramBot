@@ -1,6 +1,7 @@
 package com.telegramBot.service;
 
 import com.google.gson.Gson;
+
 import com.telegramBot.model.Currency;
 import com.telegramBot.repository.CurrencyRepository;
 import org.json.JSONObject;
@@ -19,9 +20,8 @@ public class CurrencyService {
 
     public List<Currency> parseCurrency(){
         List<Currency> currencies = new ArrayList<>();
-        String url = "https://www.cbr-xml-daily.ru/daily_json.js";
         try{
-            String json = new String(new URL(url)
+            String json = new String(new URL("https://www.cbr-xml-daily.ru/daily_json.js")
                     .openStream()
                     .readAllBytes());
             JSONObject currenciesData = new JSONObject(json)
@@ -31,7 +31,6 @@ public class CurrencyService {
                     .map((currency) -> new Gson().fromJson(
                             currenciesData.getJSONObject(currency).toString(),
                             Currency.class)).toList();
-            currencies.forEach((currency) -> System.out.println(currency.getCode() + " " + currency.getName() + " - " + currency.getValue()));
         } catch (Exception ignored){
 
         }
@@ -43,11 +42,12 @@ public class CurrencyService {
             currencyRepository.save(currency);
         }
     }
+
     public void updateCurrency(List<Currency> currencies){
         List<Currency> oldCurrencies = currencyRepository.findAll();
         for(Currency currency:currencies){
             Currency existingCurrency = oldCurrencies.stream()
-                    .filter(c -> c.getCode().equals(currency.getCode()))
+                    .filter(c -> c.getCharCode().equals(currency.getCharCode()))
                     .findFirst().orElse(null);
             if (existingCurrency != null) {
                 existingCurrency.setValue(currency.getValue());
@@ -59,6 +59,6 @@ public class CurrencyService {
     }
 
     public Currency findByCodeValute(String code){
-        return currencyRepository.findByCode(code);
+        return currencyRepository.findByCharCode(code);
     }
 }
