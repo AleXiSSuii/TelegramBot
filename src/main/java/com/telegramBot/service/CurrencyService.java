@@ -37,12 +37,6 @@ public class CurrencyService {
         return currencies;
     }
 
-    public void saveCurrencyInDataBase(List<Currency> currencies){
-        for(Currency currency:currencies){
-            currencyRepository.save(currency);
-        }
-    }
-
     public void updateCurrency(List<Currency> currencies){
         List<Currency> oldCurrencies = currencyRepository.findAll();
         for(Currency currency:currencies){

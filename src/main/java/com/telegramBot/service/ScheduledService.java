@@ -12,6 +12,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 
+
 @Slf4j
 @Service
 public class ScheduledService {
@@ -28,36 +29,32 @@ public class ScheduledService {
     @Autowired
     private TelegramBot telegramBot;
 
-    @Scheduled(cron = "* 31 * * * *")
-    private void getNewNews(){
+    @Scheduled(cron = "30 31 * * * *")
+    private void getNewNews() {
         try {
-            parseService.parseNewNews(Source.RIA);
-            log.info("Все новые новости с \"Риа Новости\" успешно загружены");
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        try {
-            parseService.parseNewNews(Source.RBC);
-            log.info("Все новые новости с \"РБК Новости\" успешно загружены");
+            parseService.parseNewNews();
+            log.info("Все новые новости с \"Риа Новости\" и \"РБК Новости\" успешно загружены");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    @Scheduled(cron = "* 30 * * * *")
+    @Scheduled(cron = "0 30 * * * *")
     private void updateCurrency() {
         currencyService.updateCurrency(currencyService.parseCurrency());
         log.info("Актуальные курсы валют обновлены");
     }
 
-    @Scheduled(cron = "* 0 * * * *")
+    @Scheduled(cron = "0 0 * * * *")
     private void sendNews() {
         List<User> usersList = userService.getAllUsers();
         News news = newsService.postNewNewsToAllUsers();
         File image = imageService.saveImage(news.getImageUrl());
         if (news.getTitle() != null && news.getMainText() != null) {
             for (User user : usersList) {
-                telegramBot.sendPhotoMessage(user.getChatId(), news.getTitle() + "\n" + "\n" + news.getMainText(), image);
+                telegramBot.sendPhotoMessage(user.getChatId(), news.getTitle()
+                        + "\n" + "\n" + news.getMainText()
+                        + "\n" + "\n" + "Источник: " + Source.getStringSource(news.getSource()), image);
             }
             newsService.checkerIsTrue(news);
             log.info("Новые новости отправлены");

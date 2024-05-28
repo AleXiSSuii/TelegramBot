@@ -2,6 +2,8 @@ package com.telegramBot.service;
 
 import com.telegramBot.model.News;
 import com.telegramBot.model.enums.Source;
+import com.telegramBot.repository.NewsRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -14,33 +16,44 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@Slf4j
 public class ParseService {
 
     @Autowired
     private NewsService newsService;
 
-    public void parseNewNews(Source source) throws IOException {
-        if(source.equals(Source.RIA)){
-            Document document = Jsoup.connect("https://ria.ru/tag_finansy/").get();
-            Elements listItems = document.getElementsByClass("list-item__title color-font-hover-only");
-            List<News> listNews = new ArrayList<>();
-            for (Element item : listItems.reversed()) {
+    @Autowired
+    private NewsRepository newsRepository;
+
+    public void parseNewNews() throws IOException {
+        int riaCounter = 0;
+        int rbcCounter = 0;
+        Document riaDocument = Jsoup.connect("https://ria.ru/tag_finansy/").get();
+        Document rbcdocument = Jsoup.connect("https://www.rbc.ru/finances/").get();
+        Elements riaItems = riaDocument.getElementsByClass("list-item__title color-font-hover-only");
+        Elements rbcItems = rbcdocument.getElementsByClass("item__link");
+        for (int i = 0; i < 10; i++) {
+            if (i % 2 == 0 && riaCounter < 5) {
                 News news = new News();
-                Element titleElement = item.selectFirst("a");
-                String title = item.text();
+                Element titleElement = riaItems.get(riaCounter).selectFirst("a");
                 String newsLink = "";
-                if(titleElement != null){
+                if (titleElement != null) {
                     newsLink = titleElement.attr("href");
                     news.setLink(newsLink);
                 }
+                if (newsRepository.findByLink(newsLink) != null) {
+                    riaCounter = 5;
+                    continue;
+                }
+                String title = riaItems.get(riaCounter).text();
                 news.setTitle(title);
 
                 Document newsDocument = Jsoup.connect(newsLink).get();
-                StringBuilder  allText = new StringBuilder();
+                StringBuilder allText = new StringBuilder();
                 boolean skip = true;
                 for (Element block : newsDocument.getElementsByClass("article__block")) {
                     if (block.attr("data-type").equals("text")) {
-                        if(skip){
+                        if (skip) {
                             skip = false;
                             continue;
                         }
@@ -52,7 +65,7 @@ public class ParseService {
                         allText.append(blockText).append("\n");
                     }
                 }
-                if(allText.length() < 45){
+                if (allText.length() < 45) {
                     continue;
                 }
                 news.setMainText(allText.toString());
@@ -62,7 +75,7 @@ public class ParseService {
                 List<String> tags = new ArrayList<>();
                 for (Element tagElement : tagsElements) {
                     String tagName = tagElement.text().trim();
-                    if (tagName.equals("Финансы")){
+                    if (tagName.equals("Финансы")) {
                         continue;
                     }
                     tags.add(tagName);
@@ -73,28 +86,26 @@ public class ParseService {
                 news.setImageUrl(imageUrl);
 
                 news.setSource(Source.RIA);
-                listNews.add(news);
-                newsService.saveNewsWithTags(news,tags);
-            }
-        }else{
-            Document document = Jsoup.connect("https://www.rbc.ru/finances/").get();
-            Elements listItems = document.getElementsByClass("item__link");
-            List<News> listNews = new ArrayList<>();
-            for (Element item : listItems) {
+                riaCounter++;
+                newsService.saveNewsWithTags(news, tags);
+            } else if (i % 2 != 0 && rbcCounter < 5) {
                 News news = new News();
-                String newsLink = item.attr("href");
-                String titleElement = item.text();
-
+                String newsLink = rbcItems.get(rbcCounter).attr("href");
+                String titleElement = rbcItems.get(rbcCounter).text();
+                if (newsRepository.findByLink(newsLink) != null) {
+                    rbcCounter = 5;
+                    continue;
+                }
                 news.setLink(newsLink);
                 news.setTitle(titleElement);
 
                 Document newsDocument = Jsoup.connect(newsLink).get();
-                StringBuilder  allText = new StringBuilder();
+                StringBuilder allText = new StringBuilder();
 
-                for (Element block :  newsDocument.getElementsByClass("article__text article__text_free")) {
+                for (Element block : newsDocument.getElementsByClass("article__text article__text_free")) {
                     allText.append(block.select("p").text());
                 }
-                if(allText.length() < 45){
+                if (allText.length() < 45) {
                     continue;
                 }
                 news.setMainText(allText.toString());
@@ -111,8 +122,12 @@ public class ParseService {
                 news.setImageUrl(imageUrl);
                 news.setMainText(allText.toString());
                 news.setSource(Source.RBC);
-                listNews.add(news);
-                newsService.saveNewsWithTags(news,tags);
+
+                rbcCounter++;
+                newsService.saveNewsWithTags(news, tags);
+            }
+            if (riaCounter > 4 && rbcCounter > 4) {
+                break;
             }
         }
     }

@@ -3,6 +3,7 @@ package com.telegramBot.service;
 import com.telegramBot.configuration.BotConfiguration;
 import com.telegramBot.model.Currency;
 import com.telegramBot.model.News;
+import com.telegramBot.model.enums.Source;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -54,7 +55,6 @@ public class TelegramBot extends TelegramLongPollingBot {
     private InlineKeyboardService inlineKeyboardService;
 
 
-
     public TelegramBot(BotConfiguration botConfiguration) {
         this.botConfiguration = botConfiguration;
         List<BotCommand> listOfCommands = new ArrayList<>();
@@ -88,12 +88,18 @@ public class TelegramBot extends TelegramLongPollingBot {
             long chatId = update.getMessage().getChatId();
 
             if (isTagSearchActive && chatId == tagSearchChatId) {
-                News news = newsService.getNewsByTagForUser(chatId, messageText);
-                if(news != null){
-                    File image = imageService.saveImage(news.getImageUrl());
-                    sendPhotoMessage(chatId, news.getTitle() + "\n" + "\n" + news.getMainText(), image);
-                }else {
-                    sendMessage(chatId,"Данного тэга не существует");
+                if (newsService.findTagIgnoreTestcase(messageText) != null) {
+                    News news = newsService.getNewsByTagForUser(chatId, messageText);
+                    if (news != null) {
+                        File image = imageService.saveImage(news.getImageUrl());
+                        sendPhotoMessage(chatId, news.getTitle()
+                                + "\n" + "\n" + news.getMainText()
+                                + "\n" + "\n" + "Источник: " + Source.getStringSource(news.getSource()), image);
+                    } else {
+                        sendMessage(chatId, "Все новости с данным тэгом были показаны");
+                    }
+                } else {
+                    sendMessage(chatId, "Данного тэга не существует");
                 }
                 isTagSearchActive = false;
             } else {
@@ -145,11 +151,13 @@ public class TelegramBot extends TelegramLongPollingBot {
                 }
             } else if (data.startsWith("tag")) {
                 News news = newsService.getNewsByTagForUser(chatId, data.substring("tag_".length()));
-                if(news != null){
+                if (news != null) {
                     File image = imageService.saveImage(news.getImageUrl());
-                    sendPhotoMessage(chatId, news.getTitle() + "\n" + "\n" + news.getMainText(), image);
-                }else{
-                    sendMessage(chatId,"Данного тэга не существует");
+                    sendPhotoMessage(chatId, news.getTitle()
+                            + "\n" + "\n" + news.getMainText()
+                            + "\n" + "\n" + "Источник: " + Source.getStringSource(news.getSource()), image);
+                } else {
+                    sendMessage(chatId, "Данного тэга не существует");
                 }
             }
         }
@@ -287,6 +295,7 @@ public class TelegramBot extends TelegramLongPollingBot {
             log.error("error");
         }
     }
+
     private void updateMessageText(long chatId, int messageId, String newText, InlineKeyboardMarkup valuteKeyboard) {
         EditMessageText editMessageText = new EditMessageText();
         editMessageText.setChatId(String.valueOf(chatId));

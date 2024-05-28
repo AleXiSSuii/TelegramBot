@@ -40,9 +40,7 @@ public class NewsService {
                 } else {
                     tag.setNewsCount(tag.getNewsCount() + 1);
                 }
-                if (!tag.getNews().contains(news)) {
-                    tag.getNews().add(news);
-                }
+                tag.getNews().add(news);
                 allTags.add(tag);
             }
             tagRepository.saveAll(allTags);
@@ -51,10 +49,6 @@ public class NewsService {
             news.setCheckSend(false);
             newsRepository.save(news);
         }
-    }
-
-    public List<News> getAllNews() {
-        return newsRepository.findAll();
     }
 
     public List<News> getAllNewsSortByDate() {
@@ -99,5 +93,9 @@ public class NewsService {
             postNews = news;
         }
         return postNews;
+    }
+
+    public Tag findTagIgnoreTestcase(String tag){
+        return tagRepository.findByTitleIgnoreCase(tag);
     }
 }
